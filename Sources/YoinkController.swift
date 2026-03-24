@@ -8,10 +8,11 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     private var scrollTopVisible: NSLayoutConstraint!
     private var scrollHeightConstraint: NSLayoutConstraint!
     private var maxTableHeight: CGFloat = 0
-    private let rowHeight: CGFloat = 68
-    private let searchChrome: CGFloat = 24 + 48 + 12 + 20  // top pad + search + gap + bottom pad
-    private let listOnlyChrome: CGFloat = 20 + 20  // top pad + bottom pad
-    private let glassCornerRadius: CGFloat = 44
+
+    private let searchChrome = Layout.Search.topPad + Layout.Search.height
+        + Layout.Search.gapToList + Layout.Scroll.bottomPad
+    private let listOnlyChrome = Layout.Scroll.topPad + Layout.Scroll.bottomPad
+
     private var workspace = ""
     private var allWindows: [AeroWindow] = []
     private var filtered: [AeroWindow] = []
@@ -22,14 +23,15 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let w = YoinkController.panelWidth(for: screen)
 
-        let maxHeight = min(500, screen.frame.height * 0.45) - listOnlyChrome
-        let visibleRows = floor(maxHeight / rowHeight)
-        maxTableHeight = visibleRows * rowHeight
+        let availableHeight = min(Layout.Panel.maxTableHeight,
+            screen.frame.height * Layout.Panel.screenHeightRatio) - listOnlyChrome
+        let visibleRows = floor(availableHeight / Layout.Row.height)
+        maxTableHeight = visibleRows * Layout.Row.height
         let h = maxTableHeight + listOnlyChrome
 
         let origin = NSPoint(
             x: screen.frame.midX - w / 2,
-            y: screen.frame.midY - h / 2 + screen.frame.height * 0.08
+            y: screen.frame.midY - h / 2 + screen.frame.height * Layout.Panel.verticalOffsetRatio
         )
 
         panel = YoinkPanel(
@@ -53,7 +55,7 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
 
         // Search field — hidden until user types
         searchField = NSTextField()
-        searchField.font = .systemFont(ofSize: 24)
+        searchField.font = .systemFont(ofSize: Layout.Search.fontSize)
         searchField.isBordered = false
         searchField.drawsBackground = false
         searchField.textColor = .labelColor
@@ -65,7 +67,7 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
                 string: "Filter...",
                 attributes: [
                     .foregroundColor: NSColor.tertiaryLabelColor,
-                    .font: NSFont.systemFont(ofSize: 24),
+                    .font: NSFont.systemFont(ofSize: Layout.Search.fontSize),
                 ]
             )
         }
@@ -86,7 +88,7 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         tableView = NSTableView()
         tableView.backgroundColor = .clear
         tableView.headerView = nil
-        tableView.rowHeight = rowHeight
+        tableView.rowHeight = Layout.Row.height
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
         tableView.selectionHighlightStyle = .regular
         tableView.gridStyleMask = []
@@ -100,18 +102,25 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         content.addSubview(scroll)
 
         // Toggleable constraints for search visible/hidden
-        scrollTopHidden = scroll.topAnchor.constraint(equalTo: content.topAnchor, constant: 20)
-        scrollTopVisible = scroll.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 12)
+        scrollTopHidden = scroll.topAnchor.constraint(equalTo: content.topAnchor,
+            constant: Layout.Scroll.topPad)
+        scrollTopVisible = scroll.topAnchor.constraint(equalTo: searchField.bottomAnchor,
+            constant: Layout.Search.gapToList)
 
         NSLayoutConstraint.activate([
-            searchField.topAnchor.constraint(equalTo: content.topAnchor, constant: 24),
-            searchField.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 32),
-            searchField.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
-            searchField.heightAnchor.constraint(equalToConstant: 48),
+            searchField.topAnchor.constraint(equalTo: content.topAnchor,
+                constant: Layout.Search.topPad),
+            searchField.leadingAnchor.constraint(equalTo: content.leadingAnchor,
+                constant: Layout.Search.leadingPad),
+            searchField.trailingAnchor.constraint(equalTo: content.trailingAnchor,
+                constant: -Layout.Search.trailingPad),
+            searchField.heightAnchor.constraint(equalToConstant: Layout.Search.height),
 
             scrollTopHidden,  // active by default — list starts at top
-            scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
-            scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+            scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor,
+                constant: Layout.Scroll.sidePad),
+            scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor,
+                constant: -Layout.Scroll.sidePad),
         ])
         scrollHeightConstraint = scroll.heightAnchor.constraint(equalToConstant: maxTableHeight)
         scrollHeightConstraint.isActive = true
@@ -119,11 +128,11 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         // Liquid Glass
         let glass = NSGlassEffectView()
         glass.contentView = content
-        glass.cornerRadius = glassCornerRadius
+        glass.cornerRadius = Layout.Panel.cornerRadius
 
         panel.contentView = glass
         panel.contentView?.wantsLayer = true
-        panel.contentView?.layer?.cornerRadius = glassCornerRadius + 2
+        panel.contentView?.layer?.cornerRadius = Layout.Panel.cornerRadiusClip
         panel.contentView?.layer?.masksToBounds = true
 
         super.init()
@@ -152,11 +161,15 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     }
 
     private static func panelWidth(for screen: NSScreen) -> CGFloat {
-        min(760, screen.frame.width * 0.45)
+        min(Layout.Panel.maxWidth, screen.frame.width * Layout.Panel.screenWidthRatio)
     }
 
-    /// Show panel immediately, fetch data in background
+    /// Toggle panel — show if hidden, hide if visible
     func activate() {
+        if panel.isVisible {
+            hide()
+            return
+        }
         searchField.stringValue = ""
         searchField.isHidden = true
         scrollTopVisible.isActive = false
@@ -165,22 +178,29 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         // Recalculate dimensions for the current screen
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let w = YoinkController.panelWidth(for: screen)
-        let maxHeight = min(500, screen.frame.height * 0.45) - listOnlyChrome
-        let visibleRows = floor(maxHeight / rowHeight)
-        maxTableHeight = visibleRows * rowHeight
+        let availableHeight = min(Layout.Panel.maxTableHeight,
+            screen.frame.height * Layout.Panel.screenHeightRatio) - listOnlyChrome
+        let visibleRows = floor(availableHeight / Layout.Row.height)
+        maxTableHeight = visibleRows * Layout.Row.height
         scrollHeightConstraint.constant = maxTableHeight
 
         let h = maxTableHeight + listOnlyChrome
         let panelFrame = NSRect(
             x: screen.frame.midX - w / 2,
-            y: screen.frame.midY - h / 2 + screen.frame.height * 0.08,
+            y: screen.frame.midY - h / 2 + screen.frame.height * Layout.Panel.verticalOffsetRatio,
             width: w,
             height: h
         )
         panel.setFrame(panelFrame, display: false)
 
+        panel.alphaValue = 0
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.1
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+        }
 
         // Fetch aerospace data in background
         DispatchQueue.global().async { [self] in
@@ -203,7 +223,13 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     }
 
     func hide() {
-        panel.orderOut(nil)
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.08
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            self?.panel.orderOut(nil)
+        })
     }
 
     @objc private func doubleClicked() {
@@ -224,10 +250,10 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         let currentY = clipView.bounds.origin.y
 
         if rowRect.origin.y < currentY {
-            let targetY = CGFloat(row) * rowHeight
+            let targetY = CGFloat(row) * Layout.Row.height
             clipView.setBoundsOrigin(NSPoint(x: 0, y: targetY))
-        } else if rowRect.origin.y + rowHeight > currentY + visibleHeight {
-            let targetY = CGFloat(row + 1) * rowHeight - visibleHeight
+        } else if rowRect.origin.y + Layout.Row.height > currentY + visibleHeight {
+            let targetY = CGFloat(row + 1) * Layout.Row.height - visibleHeight
             clipView.setBoundsOrigin(NSPoint(x: 0, y: targetY))
         }
     }
@@ -235,14 +261,14 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     private func resizePanelForRows() {
         let chrome = searchField.isHidden ? listOnlyChrome : searchChrome
         let rowCount = CGFloat(max(filtered.count, 1))
-        let neededTableHeight = min(rowCount * rowHeight, maxTableHeight)
+        let neededTableHeight = min(rowCount * Layout.Row.height, maxTableHeight)
         scrollHeightConstraint.constant = neededTableHeight
 
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let h = neededTableHeight + chrome
         let frame = NSRect(
             x: screen.frame.midX - panel.frame.width / 2,
-            y: screen.frame.midY - h / 2 + screen.frame.height * 0.08,
+            y: screen.frame.midY - h / 2 + screen.frame.height * Layout.Panel.verticalOffsetRatio,
             width: panel.frame.width,
             height: h
         )
@@ -275,22 +301,22 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
 
     private func handleKey(_ event: NSEvent) -> NSEvent? {
         switch Int(event.keyCode) {
-        case 53:  // Escape
+        case KeyCode.escape:
             if !searchField.stringValue.isEmpty {
                 hideSearch()
                 return nil
             }
             hide(); return nil
-        case 36, 76:  // Return / Enter
+        case KeyCode.returnKey, KeyCode.enter:
             yoinkSelected(); return nil
-        case 125:  // Down arrow
+        case KeyCode.downArrow:
             let next = min(tableView.selectedRow + 1, filtered.count - 1)
             if next >= 0 {
                 tableView.selectRowIndexes(IndexSet(integer: next), byExtendingSelection: false)
                 scrollToRow(next)
             }
             return nil
-        case 126:  // Up arrow
+        case KeyCode.upArrow:
             let prev = max(tableView.selectedRow - 1, 0)
             tableView.selectRowIndexes(IndexSet(integer: prev), byExtendingSelection: false)
             scrollToRow(prev)

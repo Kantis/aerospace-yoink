@@ -61,13 +61,13 @@ enum Aerospace {
         let iconCache = Dictionary(
             NSWorkspace.shared.runningApplications.compactMap { app -> (String, NSImage)? in
                 guard let name = app.localizedName, let icon = app.icon else { return nil }
-                icon.size = NSSize(width: 48, height: 48)
+                icon.size = NSSize(width: Layout.Icon.size, height: Layout.Icon.size)
                 return (name, icon)
             },
             uniquingKeysWith: { first, _ in first }
         )
         let defaultIcon = NSWorkspace.shared.icon(for: .applicationBundle)
-        defaultIcon.size = NSSize(width: 48, height: 48)
+        defaultIcon.size = NSSize(width: Layout.Icon.size, height: Layout.Icon.size)
 
         guard !rawOutput.isEmpty else { return (workspace, []) }
 

@@ -16,17 +16,17 @@ class WindowCell: NSTableCellView {
 
         iconView.imageScaling = .scaleProportionallyUpOrDown
 
-        badgeLabel.font = .systemFont(ofSize: 12, weight: .regular)
+        badgeLabel.font = .systemFont(ofSize: Layout.Font.badge, weight: .regular)
         badgeLabel.textColor = .tertiaryLabelColor
         badgeLabel.alignment = .right
         badgeLabel.isBordered = false
         badgeLabel.drawsBackground = false
 
-        appLabel.font = .systemFont(ofSize: 14, weight: .medium)
+        appLabel.font = .systemFont(ofSize: Layout.Font.appName, weight: .medium)
         appLabel.textColor = .labelColor
         appLabel.lineBreakMode = .byTruncatingTail
 
-        titleLabel.font = .systemFont(ofSize: 12, weight: .regular)
+        titleLabel.font = .systemFont(ofSize: Layout.Font.title, weight: .regular)
         titleLabel.textColor = .secondaryLabelColor
         titleLabel.lineBreakMode = .byTruncatingTail
 
@@ -38,17 +38,33 @@ class WindowCell: NSTableCellView {
     override func layout() {
         super.layout()
         let h = bounds.height
-        let iconSize: CGFloat = 48
-        let iconPad: CGFloat = 10
-        let textX: CGFloat = 72
 
-        iconView.frame = NSRect(x: iconPad, y: (h - iconSize) / 2, width: iconSize, height: iconSize)
+        iconView.frame = NSRect(
+            x: Layout.Icon.leadingPad,
+            y: (h - Layout.Icon.size) / 2,
+            width: Layout.Icon.size,
+            height: Layout.Icon.size
+        )
 
-        let textBlock: CGFloat = 20 + 2 + 17
+        let textBlock = Layout.Text.appLabelHeight + Layout.Text.labelGap + Layout.Text.titleLabelHeight
         let base = (h - textBlock) / 2
-        titleLabel.frame = NSRect(x: textX, y: base, width: bounds.width - 128, height: 17)
-        appLabel.frame = NSRect(x: textX, y: base + 17 + 2, width: bounds.width - 128, height: 20)
-        badgeLabel.frame = NSRect(x: bounds.width - 48, y: (h - 20) / 2, width: 32, height: 20)
+        titleLabel.frame = NSRect(
+            x: Layout.Text.leadingX, y: base,
+            width: bounds.width - Layout.Text.trailingMargin,
+            height: Layout.Text.titleLabelHeight
+        )
+        appLabel.frame = NSRect(
+            x: Layout.Text.leadingX,
+            y: base + Layout.Text.titleLabelHeight + Layout.Text.labelGap,
+            width: bounds.width - Layout.Text.trailingMargin,
+            height: Layout.Text.appLabelHeight
+        )
+        badgeLabel.frame = NSRect(
+            x: bounds.width - Layout.Badge.trailingOffset,
+            y: (h - Layout.Badge.height) / 2,
+            width: Layout.Badge.width,
+            height: Layout.Badge.height
+        )
     }
 
     func configure(_ w: AeroWindow) {
@@ -62,9 +78,13 @@ class WindowCell: NSTableCellView {
 class WindowRowView: NSTableRowView {
     override func drawSelection(in dirtyRect: NSRect) {
         if selectionHighlightStyle != .none {
-            let rect = bounds.insetBy(dx: 0, dy: 1)
-            NSColor.labelColor.withAlphaComponent(0.1).setFill()
-            NSBezierPath(roundedRect: rect, xRadius: 28, yRadius: 28).fill()
+            let rect = bounds.insetBy(dx: 0, dy: Layout.Row.selectionInsetY)
+            NSColor.labelColor.withAlphaComponent(Layout.Row.selectionAlpha).setFill()
+            NSBezierPath(
+                roundedRect: rect,
+                xRadius: Layout.Row.selectionCornerRadius,
+                yRadius: Layout.Row.selectionCornerRadius
+            ).fill()
         }
     }
 }
