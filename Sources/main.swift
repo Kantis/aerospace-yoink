@@ -1,7 +1,7 @@
 import AppKit
 
 let pidFile = "/tmp/yoink.pid"
-let isUnyoink = CommandLine.arguments.contains("--unyoink")
+let isYeet = CommandLine.arguments.contains("--yeet")
 
 // If an existing daemon is running, signal it and exit
 if let pidStr = try? String(contentsOfFile: pidFile, encoding: .utf8)
@@ -22,14 +22,14 @@ if let pidStr = try? String(contentsOfFile: pidFile, encoding: .utf8)
     let comm = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     if comm.hasSuffix("yoink") {
-        kill(pid, isUnyoink ? SIGUSR2 : SIGUSR1)
+        kill(pid, isYeet ? SIGUSR2 : SIGUSR1)
         exit(0)
     }
     // Stale PID file — fall through to become the new daemon
 }
 
-// --unyoink with no running daemon is a no-op
-if isUnyoink {
+// --yeet with no running daemon is a no-op
+if isYeet {
     fputs("yoink: no daemon running\n", stderr)
     exit(1)
 }
@@ -53,14 +53,14 @@ let signalSource = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main
 signalSource.setEventHandler { controller.activate() }
 signalSource.resume()
 
-// Listen for SIGUSR2 to unyoink (pop stack, send window back to origin)
+// Listen for SIGUSR2 to yeet (pop stack, send window back to origin)
 signal(SIGUSR2, SIG_IGN)
-let unyoinkSource = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
-unyoinkSource.setEventHandler { controller.unyoink() }
-unyoinkSource.resume()
+let yeetSource = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
+yeetSource.setEventHandler { controller.yeet() }
+yeetSource.resume()
 
 // Show immediately on first launch unless started as background daemon
-if !CommandLine.arguments.contains("--daemon") && !isUnyoink {
+if !CommandLine.arguments.contains("--daemon") && !isYeet {
     DispatchQueue.main.async { controller.activate() }
 }
 
