@@ -89,9 +89,24 @@ enum Aerospace {
         return (workspace, windows)
     }
 
-    static func yoink(_ windowId: Int, to workspace: String) {
+    static func yoink(_ windowId: Int, to workspace: String, focus: Bool = true) {
         run(["move-node-to-workspace", "--window-id", "\(windowId)", workspace])
-        run(["focus", "--window-id", "\(windowId)"])
+        if focus {
+            run(["focus", "--window-id", "\(windowId)"])
+        }
+    }
+
+    /// Lightweight query returning window IDs and their current workspaces.
+    static func listAllWindowLocations() -> [(windowId: Int, workspace: String)] {
+        let raw = run(["list-windows", "--all", "--format", "%{window-id}|%{workspace}"])
+        guard !raw.isEmpty else { return [] }
+        return raw.split(separator: "\n").compactMap { line in
+            let parts = line.split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2,
+                  let id = Int(parts[0].trimmingCharacters(in: .whitespaces))
+            else { return nil }
+            return (id, parts[1].trimmingCharacters(in: .whitespaces))
+        }
     }
 }
 
