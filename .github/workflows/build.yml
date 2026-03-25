@@ -9,4 +9,5 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - run: sudo xcode-select -s /Applications/Xcode_26.3.app
       - run: swift build
