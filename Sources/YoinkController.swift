@@ -20,7 +20,13 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     private var keyMonitor: Any?
     private var resignObserver: Any?
 
-    override init() {
+    private let stack: YoinkStack
+    private let pid: pid_t
+    private var pollTimer: DispatchSourceTimer?
+
+    init(stack: YoinkStack, pid: pid_t) {
+        self.stack = stack
+        self.pid = pid
         panel = YoinkPanel(
             contentRect: .zero,
             styleMask: [.borderless],
@@ -129,6 +135,8 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         tableView.target = self
         searchField.delegate = self
 
+        startPollTimerIfNeeded()
+
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] in
             self?.handleKey($0)
         }
@@ -234,6 +242,60 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         let win = filtered[tableView.selectedRow]
         hide()
         Aerospace.yoink(win.id, to: workspace)
+        stack.push(windowId: win.id, originWorkspace: win.workspace, destinationWorkspace: workspace)
+        stack.save(pid: pid)
+        startPollTimerIfNeeded()
+    }
+
+    /// Pop the most recently yoinked window and send it back to its origin.
+    func unyoink() {
+        guard let entry = stack.pop() else { return }
+        Aerospace.yoink(entry.windowId, to: entry.originWorkspace, focus: false)
+        stack.save(pid: pid)
+        stopPollTimerIfEmpty()
+    }
+
+    // MARK: - Stack Polling
+
+    private func startPollTimerIfNeeded() {
+        guard !stack.isEmpty, pollTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 3, repeating: 3)
+        timer.setEventHandler { [weak self] in
+            self?.pollWindowLocations()
+        }
+        pollTimer = timer
+        timer.resume()
+    }
+
+    private func stopPollTimerIfEmpty() {
+        guard stack.isEmpty, let timer = pollTimer else { return }
+        timer.cancel()
+        pollTimer = nil
+    }
+
+    private func pollWindowLocations() {
+        Task.detached {
+            let locations = Aerospace.listAllWindowLocations()
+            let locationMap = Dictionary(locations.map { ($0.windowId, $0.workspace) },
+                                         uniquingKeysWith: { first, _ in first })
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                var changed = false
+                for entry in self.stack.entries {
+                    let actual = locationMap[entry.windowId]
+                    // Remove if window no longer exists or moved away from destination
+                    if actual == nil || actual != entry.destinationWorkspace {
+                        self.stack.remove(windowId: entry.windowId)
+                        changed = true
+                    }
+                }
+                if changed {
+                    self.stack.save(pid: self.pid)
+                    self.stopPollTimerIfEmpty()
+                }
+            }
+        }
     }
 
     private func scrollToRow(_ row: Int) {
