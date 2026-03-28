@@ -26,7 +26,7 @@ Press a keybinding and a floating Liquid Glass panel appears, listing every wind
 ### Quick install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/aerospace-yoink.git
+git clone https://github.com/baliharko/aerospace-yoink.git
 cd aerospace-yoink
 bash install.sh
 ```
